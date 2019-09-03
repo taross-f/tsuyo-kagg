@@ -1,30 +1,24 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
+	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 )
 
 func main() {
-	url := "https://google.co.jp"
+	user, _ := goquery.NewDocument("http://localhost:8050/render.html?url=https://www.kaggle.com/confirm&timeout=10&wait=5")
+	s := user.Find("body > main > div > div.site-layout__main-content > script").Text()
+	s = strings.Split(strings.Split(s, "Kaggle.State.push(")[1], ");")[0]
+	fmt.Println(s[len(s)-30 : len(s)])
+	var decodeData interface{}
+	_ = json.Unmarshal([]byte(s), &decodeData)
+	d := decodeData.(map[string]interface{})
+	fmt.Printf("%s\n", d["country"])
+	fmt.Printf("%s\n", d["linkedInUrl"])
+	fmt.Printf("%s\n", d["gitHubUserName"])
+	fmt.Printf("%s\n", d["twitterUserName"])
 
-	resp, err := http.Get(url)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-
-	byteArray, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(byteArray))
-
-	doc, _ := goquery.NewDocument(url)
-	fmt.Println(doc.Find("title").Text())
-	user, _ := goquery.NewDocument("http://localhost:8050/render.html?url=https://www.kaggle.com/titericz&timeout=10&wait=5")
-	fmt.Println(user.Find(".site-layout__main-content").Text())
 }
