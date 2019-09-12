@@ -22,7 +22,7 @@ func ranking() []string {
 	header := "name, bio, country, Kaggle, Twitter, LinkedIn, Github, Blog"
 	results := []string{header}
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 25; i++ {
 		ranking, err := goquery.NewDocument("http://localhost:8050/render.html?url=https%3A%2F%2Fwww.kaggle.com%2Frankings.json%3Fgroup%3Dcompetitions%26page%3D" + fmt.Sprint(i+1) + "%26pageSize%3D20&timeout=10&wait=5")
 		if err != nil {
 			fmt.Println(err)
@@ -31,7 +31,10 @@ func ranking() []string {
 		var decodeData interface{}
 		_ = json.Unmarshal([]byte(r), &decodeData)
 		d := decodeData.(map[string]interface{})
-
+		if d["list"] == nil {
+			fmt.Println("Skip because of d[list] is nil.")
+			continue
+		}
 		list := d["list"].([]interface{})
 		for _, rank := range list {
 			userURL := rank.(map[string]interface{})["userUrl"]
@@ -66,14 +69,14 @@ func user(url string) string {
 		fmt.Printf("Skip because of not a Japanese. %s\n", country)
 		return ""
 	}
-	result := fmt.Sprintf("%v, \"%v\", %v, %v, %v, %v, %v, %v\n",
-		d["displayName"], d["bio"], d["country"], url,
+	result := fmt.Sprintf("%v, \"%v\", %v, %v, %v, %v, %v, %v",
+		d["displayName"],
+		strings.Replace(strings.Replace(fmt.Sprint(d["bio"]), "\n", " ", -1), ",", ";", -1), d["country"], url,
 		fmt.Sprintf("https://twitter.com/%s", d["twitterUserName"]),
 		d["linkedInUrl"],
 		fmt.Sprintf("https://github.com/%s", d["gitHubUserName"]),
 		d["websiteUrl"])
-	result = strings.Replace(result, "\n", " ", -1)
-	result = strings.Replace(result, ",", ";", -1)
+
 	fmt.Printf("%s\n", d["displayName"])
 	fmt.Printf("%s\n", d["country"])
 	fmt.Printf("%s\n", d["linkedInUrl"])
