@@ -22,7 +22,7 @@ func ranking() []string {
 	header := "name, bio, country, Kaggle, Twitter, LinkedIn, Github, Blog"
 	results := []string{header}
 
-	for i := 0; i < 25; i++ {
+	for i := 0; i < 250; i++ {
 		ranking, err := goquery.NewDocument("http://localhost:8050/render.html?url=https%3A%2F%2Fwww.kaggle.com%2Frankings.json%3Fgroup%3Dcompetitions%26page%3D" + fmt.Sprint(i+1) + "%26pageSize%3D20&timeout=10&wait=5")
 		if err != nil {
 			fmt.Println(err)
@@ -63,6 +63,10 @@ func user(url string) string {
 	s = strings.Split(strings.Split(s, "Kaggle.State.push(")[1], ");")[0]
 	var decodeData interface{}
 	_ = json.Unmarshal([]byte(s), &decodeData)
+	if decodeData == nil {
+		fmt.Println("Skip because data is nil.")
+		return ""
+	}
 	d := decodeData.(map[string]interface{})
 	country := fmt.Sprintf("%s", d["country"])
 	if country != "Japan" && country != "JP" {
