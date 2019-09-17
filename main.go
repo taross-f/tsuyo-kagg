@@ -69,7 +69,7 @@ func user(url string) string {
 	}
 	d := decodeData.(map[string]interface{})
 	country := fmt.Sprintf("%s", d["country"])
-	if country != "Japan" && country != "JP" {
+	if country != "Japan" && country != "JP" && country != "日本" {
 		fmt.Printf("Skip because of not a Japanese. %s\n", country)
 		return ""
 	}
