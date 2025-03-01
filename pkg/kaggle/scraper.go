@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -48,47 +49,44 @@ func (s *Scraper) GetRankings() ([]User, error) {
 	for i := 0; i < s.Config.MaxPages; i++ {
 		log.Printf("Fetching page %d of %d", i+1, s.Config.MaxPages)
 
-		rankingURL := fmt.Sprintf("%s/rankings.json?group=competitions&page=%d&pageSize=%d",
+		rankingURL := fmt.Sprintf("%s/rankings?group=competitions&page=%d&pageSize=%d",
 			s.Config.KaggleBaseURL, i+1, s.Config.PageSize)
 
 		splashURL := fmt.Sprintf("%s/render.html?url=%s&timeout=%d&wait=%d",
 			s.Config.SplashURL, url.QueryEscape(rankingURL), s.Config.RequestTimeout, s.Config.WaitTime)
 
-		doc, err := goquery.NewDocument(splashURL)
+		// Fetch the page using Splash
+		resp, err := http.Get(splashURL)
 		if err != nil {
 			log.Printf("Error fetching ranking page %d: %v", i+1, err)
 			continue
 		}
+		defer resp.Body.Close()
 
-		jsonText := doc.Text()
-		var data map[string]interface{}
-
-		if err := json.Unmarshal([]byte(jsonText), &data); err != nil {
-			log.Printf("Error parsing JSON from page %d: %v", i+1, err)
+		// Parse the HTML document
+		doc, err := goquery.NewDocumentFromReader(resp.Body)
+		if err != nil {
+			log.Printf("Error parsing HTML from page %d: %v", i+1, err)
 			continue
 		}
 
-		list, ok := data["list"].([]interface{})
-		if !ok {
-			log.Printf("No list found on page %d or invalid format", i+1)
-			continue
-		}
-
-		for _, item := range list {
-			rankData, ok := item.(map[string]interface{})
-			if !ok {
-				continue
+		// Find user links in the rankings page
+		doc.Find("a.block.UserEntity-link").Each(func(j int, selection *goquery.Selection) {
+			userURL, exists := selection.Attr("href")
+			if !exists {
+				return
 			}
 
-			userURL, ok := rankData["userUrl"].(string)
-			if !ok {
-				continue
+			// Make sure it's a user profile link
+			if !strings.HasPrefix(userURL, "/") {
+				return
 			}
 
-			user, err := s.GetUserDetails(fmt.Sprintf("%s%s", s.Config.KaggleBaseURL, userURL))
+			fullUserURL := fmt.Sprintf("%s%s", s.Config.KaggleBaseURL, userURL)
+			user, err := s.GetUserDetails(fullUserURL)
 			if err != nil {
 				log.Printf("Error fetching user details: %v", err)
-				continue
+				return
 			}
 
 			if user != nil {
@@ -98,6 +96,11 @@ func (s *Scraper) GetRankings() ([]User, error) {
 			// Random delay between requests
 			delay := time.Duration(rand.Intn(s.Config.MaxDelay-s.Config.MinDelay+1)+s.Config.MinDelay) * time.Second
 			time.Sleep(delay)
+		})
+
+		// If we didn't find any users on this page, we might be at the end
+		if len(users) == 0 && i > 0 {
+			log.Printf("No users found on page %d, might be at the end of rankings", i+1)
 		}
 	}
 
@@ -109,9 +112,15 @@ func (s *Scraper) GetUserDetails(userURL string) (*User, error) {
 	splashURL := fmt.Sprintf("%s/render.html?url=%s&timeout=%d&wait=%d",
 		s.Config.SplashURL, url.QueryEscape(userURL), s.Config.RequestTimeout, s.Config.WaitTime)
 
-	doc, err := goquery.NewDocument(splashURL)
+	resp, err := http.Get(splashURL)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching user page: %w", err)
+	}
+	defer resp.Body.Close()
+
+	doc, err := goquery.NewDocumentFromReader(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing user page HTML: %w", err)
 	}
 
 	scriptText := doc.Find("body > main > div > div.site-layout__main-content > script").Text()

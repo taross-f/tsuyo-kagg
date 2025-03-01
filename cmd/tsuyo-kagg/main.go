@@ -17,6 +17,7 @@ func main() {
 	outputPath := flag.String("output", "", "Path to output file (overrides config)")
 	generateConfig := flag.Bool("generate-config", false, "Generate default configuration file")
 	maxPages := flag.Int("max-pages", 0, "Maximum number of pages to scrape (overrides config)")
+	useAPI := flag.Bool("use-api", true, "Use Kaggle API instead of web scraping")
 	flag.Parse()
 
 	// Generate default configuration if requested
@@ -54,19 +55,37 @@ func main() {
 		}
 	}
 
-	// Create scraper
-	scraper := kaggle.NewScraper(cfg)
+	var users []kaggle.User
 
-	// Get rankings
-	log.Printf("Starting to scrape Kaggle rankings for %s users", cfg.TargetCountry)
-	users, err := scraper.GetRankings()
-	if err != nil {
-		log.Fatalf("Failed to get rankings: %v", err)
+	if *useAPI {
+		// Use Kaggle API
+		log.Printf("Using Kaggle API to fetch users")
+		apiClient := kaggle.NewAPIClient(cfg)
+		users, err = apiClient.GetUsers()
+		if err != nil {
+			log.Fatalf("Failed to get users via API: %v", err)
+		}
+	} else {
+		// Use web scraping
+		log.Printf("Using web scraping to fetch users")
+		scraper := kaggle.NewScraper(cfg)
+		users, err = scraper.GetRankings()
+		if err != nil {
+			log.Fatalf("Failed to get rankings: %v", err)
+		}
 	}
 
 	// Export to CSV
 	log.Printf("Found %d users from %s", len(users), cfg.TargetCountry)
-	csvData := scraper.ExportToCSV(users)
+
+	var csvData string
+	if *useAPI {
+		apiClient := kaggle.NewAPIClient(cfg)
+		csvData = apiClient.ExportToCSV(users)
+	} else {
+		scraper := kaggle.NewScraper(cfg)
+		csvData = scraper.ExportToCSV(users)
+	}
 
 	// Write to file
 	if err := os.WriteFile(cfg.OutputFile, []byte(csvData), 0644); err != nil {
